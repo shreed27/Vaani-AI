@@ -1,0 +1,92 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: userId (auth.uid)
+    // Fields:
+    //   - uid: string (required)
+    //   - name: string (required)
+    //   - role: string (required, 'merchant' or 'customer')
+    //   - email: string (optional)
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: transactions
+    // Document ID: transactionId
+    // Fields:
+    //   - amount: number (required)
+    //   - currency: string (required)
+    //   - timestamp: timestamp (required)
+    //   - merchantId: string (required)
+    //   - customerId: string (required)
+    //   - customerName: string (required)
+    //   - merchantName: string (required)
+    //   - category: string (required)
+    //   - status: string (required, 'success', 'failed', 'pending')
+    //   - referenceId: string (required)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isMerchant(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role == 'merchant';
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'role']) &&
+             data.uid is string &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.role in ['merchant', 'customer'];
+    }
+
+    function isValidTransaction(data) {
+      return data.keys().hasAll(['amount', 'currency', 'timestamp', 'merchantId', 'customerId', 'status']) &&
+             data.amount is number && data.amount > 0 &&
+             data.currency is string &&
+             data.merchantId is string &&
+             data.customerId is string &&
+             data.status in ['success', 'failed', 'pending'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /transactions/{transactionId} {
+      // Users can only read transactions where they are either the merchant or the customer
+      allow read: if isAuthenticated() && (
+        request.auth.uid == resource.data.merchantId || 
+        request.auth.uid == resource.data.customerId
+      );
+      
+      // For the hackathon, we'll allow authenticated users to create transactions
+      // In a real app, this would be restricted to a payment gateway or specific logic
+      allow create: if isAuthenticated() && isValidTransaction(request.resource.data);
+      
+      // Transactions are generally immutable once created, but we might update status
+      allow update: if isAuthenticated() && (
+        request.auth.uid == resource.data.merchantId || 
+        request.auth.uid == resource.data.customerId
+      ) && isValidTransaction(request.resource.data);
+    }
+  }
+}

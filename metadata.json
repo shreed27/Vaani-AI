@@ -1,0 +1,5 @@
+{
+  "name": "Dukaan Dost - AI Voice Agent",
+  "description": "A real-time voice-powered assistant for merchants (AI Soundbox 2.0) and users (Personal Finance AI) to track and query transactions.",
+  "requestFramePermissions": ["microphone"]
+}
