@@ -21,7 +21,7 @@ import {
 import { auth, db } from './firebase';
 import { UserProfile, Transaction, UserRole } from './types';
 import VoiceAgent from './components/VoiceAgent';
-import TransactionList from './components/TransactionList';
+import { seedOneMonthData } from './services/seed';
 import { 
   Store, 
   User as UserIcon, 
@@ -31,7 +31,11 @@ import {
   PlusCircle,
   ShieldCheck,
   Zap,
-  Clock
+  Clock,
+  Menu,
+  ChevronLeft,
+  Database,
+  CheckCircle2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -41,7 +45,9 @@ const App: React.FC = () => {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [isAuthReady, setIsAuthReady] = useState(false);
-
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSeeding, setIsSeeding] = useState(false);
+  const [seedSuccess, setSeedSuccess] = useState(false);
   const [autoAnnounce, setAutoAnnounce] = useState(false);
 
   useEffect(() => {
@@ -140,6 +146,20 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSeedData = async () => {
+    if (!user || !profile) return;
+    setIsSeeding(true);
+    try {
+      await seedOneMonthData(user.uid, profile.role, profile.name);
+      setSeedSuccess(true);
+      setTimeout(() => setSeedSuccess(false), 3000);
+    } catch (error) {
+      console.error("Seeding failed:", error);
+    } finally {
+      setIsSeeding(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
@@ -221,62 +241,90 @@ const App: React.FC = () => {
   return (
     <div className="flex h-screen bg-white overflow-hidden font-sans">
       {/* Sidebar */}
-      <aside className="w-[280px] bg-[#f0f4f9] flex flex-col p-4 transition-all duration-300 border-r border-[#d2d7dd]/30">
-        <div className="flex items-center gap-3 mb-8 px-2">
-          <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${
-            profile.role === 'merchant' ? 'bg-blue-600' : 'bg-emerald-600'
-          }`}>
-            {profile.role === 'merchant' ? <Store className="w-5 h-5 text-white" /> : <Wallet className="w-5 h-5 text-white" />}
+      <motion.aside 
+        initial={false}
+        animate={{ width: isSidebarOpen ? 280 : 0, opacity: isSidebarOpen ? 1 : 0 }}
+        className="bg-[#f0f4f9] flex flex-col transition-all duration-300 border-r border-[#d2d7dd]/30 relative overflow-hidden"
+      >
+        <div className="w-[280px] h-full flex flex-col p-4">
+          <div className="flex items-center gap-3 mb-8 px-2">
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${
+              profile.role === 'merchant' ? 'bg-blue-600' : 'bg-emerald-600'
+            }`}>
+              {profile.role === 'merchant' ? <Store className="w-5 h-5 text-white" /> : <Wallet className="w-5 h-5 text-white" />}
+            </div>
+            <h1 className="font-display font-semibold text-xl text-[#1f1f1f] tracking-tight">Dukaan Dost</h1>
           </div>
-          <h1 className="font-display font-semibold text-xl text-[#1f1f1f] tracking-tight">Dukaan Dost</h1>
-        </div>
 
-        <button 
-          onClick={() => window.location.reload()}
-          className="flex items-center gap-3 px-4 py-3 bg-[#e1e5ea] hover:bg-[#d2d7dd] rounded-full text-sm font-medium text-[#444746] transition-all mb-6 shadow-sm active:scale-95"
-        >
-          <PlusCircle className="w-5 h-5" />
-          New Chat
-        </button>
-
-        <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
-          <p className="px-4 text-[11px] font-bold text-[#444746] uppercase tracking-wider mb-2 opacity-60">Recent activity</p>
-          {transactions.length > 0 ? (
-            transactions.slice(0, 10).map((tx, i) => (
-              <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#e1e5ea] rounded-full text-sm text-[#1f1f1f] cursor-pointer truncate transition-colors group">
-                <Clock className="w-4 h-4 text-[#444746] shrink-0 group-hover:text-blue-500" />
-                <span className="truncate">₹{tx.amount} • {tx.customerName || tx.merchantName}</span>
-              </div>
-            ))
-          ) : (
-            <p className="px-4 text-xs text-[#444746] italic">No recent transactions</p>
-          )}
-        </div>
-
-        <div className="mt-auto pt-4 border-t border-[#d2d7dd] space-y-1">
-          <div 
-            onClick={() => setAutoAnnounce(!autoAnnounce)}
-            className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-sm cursor-pointer transition-all active:scale-95 ${
-              autoAnnounce ? 'bg-[#e8f0fe] text-[#1967d2] font-medium' : 'hover:bg-[#e1e5ea] text-[#444746]'
-            }`}
+          <button 
+            onClick={() => window.location.reload()}
+            className="flex items-center gap-3 px-4 py-3 bg-[#e1e5ea] hover:bg-[#d2d7dd] rounded-full text-sm font-medium text-[#444746] transition-all mb-6 shadow-sm active:scale-95"
           >
-            <Zap className={`w-4 h-4 ${autoAnnounce ? 'fill-[#1967d2]' : ''}`} />
-            Auto-Announce
+            <PlusCircle className="w-5 h-5" />
+            New Chat
+          </button>
+
+          <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
+            <p className="px-4 text-[11px] font-bold text-[#444746] uppercase tracking-wider mb-2 opacity-60">Recent activity</p>
+            {transactions.length > 0 ? (
+              transactions.slice(0, 10).map((tx, i) => (
+                <div key={i} className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#e1e5ea] rounded-full text-sm text-[#1f1f1f] cursor-pointer truncate transition-colors group">
+                  <Clock className="w-4 h-4 text-[#444746] shrink-0 group-hover:text-blue-500" />
+                  <span className="truncate">₹{tx.amount} • {tx.customerName || tx.merchantName}</span>
+                </div>
+              ))
+            ) : (
+              <p className="px-4 text-xs text-[#444746] italic">No recent transactions</p>
+            )}
           </div>
-          <div 
-            onClick={() => signOut(auth)}
-            className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#e1e5ea] rounded-full text-sm text-[#444746] cursor-pointer transition-colors"
-          >
-            <LogOut className="w-4 h-4" />
-            Sign Out
+
+          <div className="mt-auto pt-4 border-t border-[#d2d7dd] space-y-1">
+            <button 
+              onClick={handleSeedData}
+              disabled={isSeeding}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm transition-all active:scale-95 ${
+                seedSuccess ? 'bg-emerald-50 text-emerald-600' : 'hover:bg-[#e1e5ea] text-[#444746]'
+              }`}
+            >
+              {isSeeding ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : seedSuccess ? (
+                <CheckCircle2 className="w-4 h-4" />
+              ) : (
+                <Database className="w-4 h-4" />
+              )}
+              {seedSuccess ? "Data Seeded!" : "Seed Demo Data"}
+            </button>
+            <div 
+              onClick={() => setAutoAnnounce(!autoAnnounce)}
+              className={`flex items-center gap-3 px-4 py-2.5 rounded-full text-sm cursor-pointer transition-all active:scale-95 ${
+                autoAnnounce ? 'bg-[#e8f0fe] text-[#1967d2] font-medium' : 'hover:bg-[#e1e5ea] text-[#444746]'
+              }`}
+            >
+              <Zap className={`w-4 h-4 ${autoAnnounce ? 'fill-[#1967d2]' : ''}`} />
+              Auto-Announce
+            </div>
+            <div 
+              onClick={() => signOut(auth)}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#e1e5ea] rounded-full text-sm text-[#444746] cursor-pointer transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              Sign Out
+            </div>
           </div>
         </div>
-      </aside>
+      </motion.aside>
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative bg-white overflow-hidden">
-        <header className="h-16 flex items-center justify-between px-6 shrink-0 border-b border-[#f0f4f9]">
-          <div className="flex items-center gap-2">
+        <header className="h-16 flex items-center justify-between px-6 shrink-0 z-20">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 text-[#444746] hover:bg-[#f0f4f9] rounded-full transition-all"
+            >
+              {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
             <div className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
               profile.role === 'merchant' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
             }`}>
@@ -284,13 +332,6 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <button 
-              onClick={generateDummyTransaction}
-              className="p-2 text-[#444746] hover:bg-[#f0f4f9] rounded-full transition-all active:rotate-90"
-              title="Add Demo Transaction"
-            >
-              <PlusCircle className="w-5 h-5" />
-            </button>
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-100 to-purple-100 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm border border-white">
               {profile.name[0]}
             </div>
@@ -337,7 +378,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <footer className="p-6 text-center shrink-0 border-t border-[#f0f4f9]/50">
+        <footer className="p-6 text-center shrink-0">
           <p className="text-[11px] text-[#444746] opacity-60 max-w-md mx-auto">
             Dukaan Dost is an experimental AI. It can provide insights on your payments and finance. Always verify important financial info.
           </p>
