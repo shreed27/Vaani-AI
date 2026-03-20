@@ -16,12 +16,14 @@ import {
   where, 
   orderBy, 
   limit,
-  addDoc
+  addDoc,
+  getDocFromServer
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile, Transaction, UserRole } from './types';
 import VoiceAgent from './components/VoiceAgent';
 import { seedOneMonthData } from './services/seed';
+import { handleFirestoreError, OperationType } from './utils/errorHandling';
 import { 
   Store, 
   User as UserIcon, 
@@ -40,31 +42,37 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 
 const App: React.FC = () => {
-  const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [user, setUser] = useState<any>({ uid: 'demo-user', displayName: 'Demo User' });
+  const [profile, setProfile] = useState<UserProfile | null>({
+    uid: 'demo-user',
+    name: 'Demo User',
+    role: 'merchant',
+    createdAt: new Date().toISOString()
+  });
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [isAuthReady, setIsAuthReady] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedSuccess, setSeedSuccess] = useState(false);
   const [autoAnnounce, setAutoAnnounce] = useState(false);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
-        if (userDoc.exists()) {
-          setProfile(userDoc.data() as UserProfile);
+    // Auth is disabled as per request
+    setLoading(false);
+    setIsAuthReady(true);
+
+    // Test connection to Firestore
+    const testConnection = async () => {
+      try {
+        await getDocFromServer(doc(db, 'test', 'connection'));
+      } catch (error) {
+        if(error instanceof Error && error.message.includes('the client is offline')) {
+          console.error("Please check your Firebase configuration. ");
         }
-      } else {
-        setProfile(null);
       }
-      setIsAuthReady(true);
-      setLoading(false);
-    });
-    return () => unsubscribe();
+    };
+    testConnection();
   }, []);
 
   useEffect(() => {
@@ -82,7 +90,7 @@ const App: React.FC = () => {
       const txs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Transaction));
       setTransactions(txs);
     }, (error) => {
-      console.error("Firestore error:", error);
+      handleFirestoreError(error, OperationType.LIST, 'transactions');
     });
 
     return () => unsubscribe();
@@ -160,80 +168,10 @@ const App: React.FC = () => {
     }
   };
 
-  if (loading) {
+  if (loading || !profile || !user) {
     return (
       <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center p-6">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-white rounded-[2.5rem] p-10 shadow-2xl shadow-blue-100 border border-zinc-100 text-center space-y-8"
-        >
-          <div className="w-20 h-20 bg-blue-600 rounded-3xl flex items-center justify-center mx-auto shadow-lg shadow-blue-200 rotate-3">
-            <Zap className="w-10 h-10 text-white" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-4xl font-black text-zinc-900 tracking-tight">Dukaan Dost</h1>
-            <p className="text-zinc-500 font-medium">Your AI Voice Agent for Payments & Finance</p>
-          </div>
-          <button 
-            onClick={handleLogin}
-            className="w-full bg-zinc-900 text-white py-4 rounded-2xl font-bold hover:bg-zinc-800 transition-all flex items-center justify-center gap-3 shadow-xl shadow-zinc-200"
-          >
-            <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-            Sign in with Google
-          </button>
-          <div className="pt-4 flex items-center justify-center gap-6 text-zinc-400">
-            <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-widest">
-              <ShieldCheck className="w-4 h-4" /> Secure
-            </div>
-            <div className="flex items-center gap-1 text-xs font-bold uppercase tracking-widest">
-              <Zap className="w-4 h-4" /> Real-time
-            </div>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="min-h-screen bg-zinc-50 flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full space-y-8">
-          <div className="text-center space-y-2">
-            <h2 className="text-3xl font-bold text-zinc-900">Welcome, {user.displayName}!</h2>
-            <p className="text-zinc-500">How would you like to use Dukaan Dost?</p>
-          </div>
-          <div className="grid grid-cols-1 gap-4">
-            <button 
-              onClick={() => handleSelectRole('merchant')}
-              className="group bg-white p-8 rounded-[2rem] border-2 border-transparent hover:border-blue-500 transition-all text-left shadow-sm hover:shadow-xl"
-            >
-              <div className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <Store className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold text-zinc-900">I am a Merchant</h3>
-              <p className="text-zinc-500 text-sm mt-1">AI Soundbox 2.0. Track shop payments with voice.</p>
-            </button>
-            <button 
-              onClick={() => handleSelectRole('customer')}
-              className="group bg-white p-8 rounded-[2rem] border-2 border-transparent hover:border-emerald-500 transition-all text-left shadow-sm hover:shadow-xl"
-            >
-              <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
-                <UserIcon className="w-8 h-8" />
-              </div>
-              <h3 className="text-xl font-bold text-zinc-900">I am a User</h3>
-              <p className="text-zinc-500 text-sm mt-1">Personal Finance AI. Track your spending & insights.</p>
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
@@ -253,7 +191,7 @@ const App: React.FC = () => {
             }`}>
               {profile.role === 'merchant' ? <Store className="w-5 h-5 text-white" /> : <Wallet className="w-5 h-5 text-white" />}
             </div>
-            <h1 className="font-display font-semibold text-xl text-[#1f1f1f] tracking-tight">Dukaan Dost</h1>
+            <h1 className="font-display font-semibold text-xl text-[#1f1f1f] tracking-tight">Vaani</h1>
           </div>
 
           <button 
@@ -305,11 +243,14 @@ const App: React.FC = () => {
               Auto-Announce
             </div>
             <div 
-              onClick={() => signOut(auth)}
+              onClick={() => {
+                const newRole = profile.role === 'merchant' ? 'customer' : 'merchant';
+                setProfile({ ...profile, role: newRole });
+              }}
               className="flex items-center gap-3 px-4 py-2.5 hover:bg-[#e1e5ea] rounded-full text-sm text-[#444746] cursor-pointer transition-colors"
             >
-              <LogOut className="w-4 h-4" />
-              Sign Out
+              <UserIcon className="w-4 h-4" />
+              Switch to {profile.role === 'merchant' ? 'Customer' : 'Merchant'}
             </div>
           </div>
         </div>
@@ -346,7 +287,7 @@ const App: React.FC = () => {
                 Hello, {profile.name.split(' ')[0]}
               </h2>
               <h3 className="text-2xl md:text-4xl font-display font-medium leading-tight text-[#c4c7c5] mt-3 opacity-80">
-                I'm your {profile.role === 'merchant' ? 'Dukaan Dost' : 'Finance Buddy'}
+                I'm Vaani, your {profile.role === 'merchant' ? 'Voice Assistant' : 'Finance Buddy'}
               </h3>
             </div>
 
@@ -380,7 +321,7 @@ const App: React.FC = () => {
 
         <footer className="p-6 text-center shrink-0">
           <p className="text-[11px] text-[#444746] opacity-60 max-w-md mx-auto">
-            Dukaan Dost is an experimental AI. It can provide insights on your payments and finance. Always verify important financial info.
+            Experimental AI. It can provide insights on your payments and finance. Always verify important financial info.
           </p>
         </footer>
       </main>

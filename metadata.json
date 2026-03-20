@@ -1,5 +1,5 @@
 {
-  "name": "Dukaan Dost - AI Voice Agent",
-  "description": "A real-time voice-powered assistant for merchants (AI Soundbox 2.0) and users (Personal Finance AI) to track and query transactions.",
+  "name": "Vaani - Siri for Finance",
+  "description": "An autonomous, voice-activated AI assistant for finance and merchants. Just say 'Hey Vaani' to start.",
   "requestFramePermissions": ["microphone"]
 }
