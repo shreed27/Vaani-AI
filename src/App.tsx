@@ -21,7 +21,9 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from './firebase';
 import { UserProfile, Transaction, UserRole } from './types';
+import { cn } from './lib/utils';
 import VoiceAgent from './components/VoiceAgent';
+import TransactionManager from './components/TransactionManager';
 import { seedOneMonthData } from './services/seed';
 import { handleFirestoreError, OperationType } from './utils/errorHandling';
 import { 
@@ -35,9 +37,10 @@ import {
   Zap,
   Clock,
   Menu,
-  ChevronLeft,
+  ChevronLeft, 
   Database,
-  CheckCircle2
+  CheckCircle2,
+  Loader2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -56,6 +59,7 @@ const App: React.FC = () => {
   const [isSeeding, setIsSeeding] = useState(false);
   const [seedSuccess, setSeedSuccess] = useState(false);
   const [autoAnnounce, setAutoAnnounce] = useState(false);
+  const [activeView, setActiveView] = useState<'chat' | 'transactions'>('chat');
 
   useEffect(() => {
     // Auth is disabled as per request
@@ -195,12 +199,36 @@ const App: React.FC = () => {
           </div>
 
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => {
+              setActiveView('chat');
+              window.location.reload();
+            }}
             className="flex items-center gap-3 px-4 py-3 bg-[#e1e5ea] hover:bg-[#d2d7dd] rounded-full text-sm font-medium text-[#444746] transition-all mb-6 shadow-sm active:scale-95"
           >
             <PlusCircle className="w-5 h-5" />
             New Chat
           </button>
+
+          <div className="space-y-1 mb-6">
+            <button 
+              onClick={() => setActiveView('chat')}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm transition-all ${
+                activeView === 'chat' ? 'bg-[#e8f0fe] text-[#1967d2] font-medium' : 'hover:bg-[#e1e5ea] text-[#444746]'
+              }`}
+            >
+              <Zap className={`w-4 h-4 ${activeView === 'chat' ? 'fill-[#1967d2]' : ''}`} />
+              Vaani AI
+            </button>
+            <button 
+              onClick={() => setActiveView('transactions')}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-full text-sm transition-all ${
+                activeView === 'transactions' ? 'bg-[#e8f0fe] text-[#1967d2] font-medium' : 'hover:bg-[#e1e5ea] text-[#444746]'
+              }`}
+            >
+              <Database className={`w-4 h-4 ${activeView === 'transactions' ? 'fill-[#1967d2]' : ''}`} />
+              Transactions
+            </button>
+          </div>
 
           <div className="flex-1 overflow-y-auto space-y-1 custom-scrollbar">
             <p className="px-4 text-[11px] font-bold text-[#444746] uppercase tracking-wider mb-2 opacity-60">Recent activity</p>
@@ -258,72 +286,96 @@ const App: React.FC = () => {
 
       {/* Main Content */}
       <main className="flex-1 flex flex-col relative bg-white overflow-hidden">
-        <header className="h-16 flex items-center justify-between px-6 shrink-0 z-20">
-          <div className="flex items-center gap-4">
+        {activeView !== 'chat' && (
+          <header className="h-16 flex items-center justify-between px-6 shrink-0 z-20">
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                className="p-2 text-[#444746] hover:bg-[#f0f4f9] rounded-full transition-all"
+              >
+                {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              </button>
+              <div className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
+                profile.role === 'merchant' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+              }`}>
+                {profile.role === 'merchant' ? 'Merchant Mode' : 'Personal Finance'}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-100 to-purple-100 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm border border-white">
+                {profile.name[0]}
+              </div>
+            </div>
+          </header>
+        )}
+
+        {/* Floating Navigation for Chat View */}
+        {activeView === 'chat' && (
+          <div className="absolute top-8 left-1/2 -translate-x-1/2 z-50 flex bg-[#f0f4f9]/80 backdrop-blur-xl p-1 rounded-2xl border border-white/20 shadow-lg">
             <button 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              className="p-2 text-[#444746] hover:bg-[#f0f4f9] rounded-full transition-all"
+              onClick={() => setActiveView('chat')}
+              className={cn(
+                "px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all",
+                activeView === 'chat' ? "bg-white text-zinc-900 shadow-sm" : "text-[#444746] hover:text-zinc-900"
+              )}
             >
-              {isSidebarOpen ? <ChevronLeft className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              Vaani
             </button>
-            <div className={`px-3 py-1 rounded-full text-[11px] font-bold uppercase tracking-wider ${
-              profile.role === 'merchant' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
-            }`}>
-              {profile.role === 'merchant' ? 'Merchant Mode' : 'Personal Finance'}
-            </div>
+            <button 
+              onClick={() => setActiveView('transactions')}
+              className={cn(
+                "px-6 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all",
+                activeView === 'transactions' ? "bg-white text-zinc-900 shadow-sm" : "text-[#444746] hover:text-zinc-900"
+              )}
+            >
+              Data
+            </button>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-blue-100 to-purple-100 flex items-center justify-center text-blue-700 font-bold text-sm shadow-sm border border-white">
-              {profile.name[0]}
-            </div>
-          </div>
-        </header>
+        )}
 
         <div className="flex-1 flex flex-col items-center justify-center px-4 overflow-y-auto custom-scrollbar">
           <div className="w-full max-w-4xl flex flex-col items-center py-12">
-            {/* Greeting */}
-            <div className="text-center mb-16">
-              <h2 className="text-5xl md:text-7xl font-display font-medium leading-tight gemini-gradient-text tracking-tight">
-                Hello, {profile.name.split(' ')[0]}
-              </h2>
-              <h3 className="text-2xl md:text-4xl font-display font-medium leading-tight text-[#c4c7c5] mt-3 opacity-80">
-                I'm Vaani, your {profile.role === 'merchant' ? 'Voice Assistant' : 'Finance Buddy'}
-              </h3>
-            </div>
-
-            {/* The Central Orb Agent */}
-            <div className="w-full flex justify-center">
-              <VoiceAgent userId={user.uid} role={profile.role} userName={profile.name} autoAnnounce={autoAnnounce} />
-            </div>
-
-            {/* Suggestions Grid */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full max-w-3xl mt-16">
-              {[
-                { icon: <TrendingUp className="w-5 h-5 text-blue-500" />, text: profile.role === 'merchant' ? "Aaj kitna dhanda hua?" : "Food pe kitna kharcha hua?" },
-                { icon: <ShieldCheck className="w-5 h-5 text-emerald-500" />, text: profile.role === 'merchant' ? "₹500 aaya kya?" : "Last week summary" },
-                { icon: <FileText className="w-5 h-5 text-orange-500" />, text: profile.role === 'merchant' ? "Aaj ka report bhej do" : "₹500-1000 expenses" },
-                { icon: <Zap className="w-5 h-5 text-purple-500" />, text: profile.role === 'merchant' ? "Is payment missing?" : "Top category" }
-              ].map((card, i) => (
+            <AnimatePresence mode="wait">
+              {activeView === 'chat' ? (
                 <motion.div 
-                  key={i} 
-                  whileHover={{ y: -4, backgroundColor: '#f8fafd' }}
-                  className="suggestion-card p-5 rounded-3xl cursor-pointer flex flex-col justify-between h-36 border border-[#f0f4f9] hover:border-[#d2d7dd] transition-all shadow-sm"
+                  key="chat"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="w-full flex flex-col items-center"
                 >
-                  <p className="text-sm text-[#1f1f1f] font-medium leading-relaxed line-clamp-3">{card.text}</p>
-                  <div className="self-end bg-white p-2 rounded-xl shadow-sm border border-[#f0f4f9]">
-                    {card.icon}
+                  {/* The Central Orb Agent - Now the only thing in Chat View */}
+                  <div className="w-full h-[60vh] flex items-center justify-center">
+                    <VoiceAgent userId={user.uid} role={profile.role} userName={profile.name} autoAnnounce={autoAnnounce} />
                   </div>
                 </motion.div>
-              ))}
-            </div>
+              ) : (
+                <motion.div 
+                  key="transactions"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  className="w-full"
+                >
+                  <TransactionManager 
+                    userId={user.uid} 
+                    role={profile.role} 
+                    initialTransactions={transactions} 
+                    onSeed={() => seedOneMonthData(user.uid, profile.role, profile.name)}
+                  />
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
 
-        <footer className="p-6 text-center shrink-0">
-          <p className="text-[11px] text-[#444746] opacity-60 max-w-md mx-auto">
-            Experimental AI. It can provide insights on your payments and finance. Always verify important financial info.
-          </p>
-        </footer>
+        {activeView !== 'chat' && (
+          <footer className="p-6 text-center shrink-0">
+            <p className="text-[11px] text-[#444746] opacity-60 max-w-md mx-auto">
+              Experimental AI. It can provide insights on your payments and finance. Always verify important financial info.
+            </p>
+          </footer>
+        )}
       </main>
     </div>
   );
@@ -336,12 +388,6 @@ const FileText = ({ className }: { className?: string }) => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <line x1="10" y1="9" x2="8" y2="9" />
-  </svg>
-);
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
   </svg>
 );
 

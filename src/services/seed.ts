@@ -1,6 +1,7 @@
 import { collection, addDoc, writeBatch, doc } from "firebase/firestore";
 import { db } from "../firebase";
 import { Transaction } from "../types";
+import { suggestCategory } from "./gemini";
 
 export const seedOneMonthData = async (userId: string, role: 'merchant' | 'customer', userName: string) => {
   const batch = writeBatch(db);
@@ -15,23 +16,26 @@ export const seedOneMonthData = async (userId: string, role: 'merchant' | 'custo
   
   const isMerchant = role === 'merchant';
   
-  // Generate ~60 transactions (2 per day on average)
-  for (let i = 0; i < 60; i++) {
+  // Generate ~100 transactions (3-4 per day on average)
+  for (let i = 0; i < 100; i++) {
     const randomTime = startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime());
     const timestamp = new Date(randomTime).toISOString();
     
+    const merchant = merchants[Math.floor(Math.random() * merchants.length)];
+    const customer = customers[Math.floor(Math.random() * customers.length)];
+    
     const tx: Transaction = {
-      amount: Math.floor(Math.random() * 2000) + 20,
+      amount: Math.floor(Math.random() * 5000) + 10,
       currency: "INR",
       timestamp,
       merchantId: isMerchant ? userId : "dummy_merchant_" + Math.floor(Math.random() * 10),
       customerId: isMerchant ? "dummy_customer_" + Math.floor(Math.random() * 10) : userId,
-      merchantName: isMerchant ? userName : merchants[Math.floor(Math.random() * merchants.length)],
-      customerName: isMerchant ? customers[Math.floor(Math.random() * customers.length)] : userName,
-      category: categories[Math.floor(Math.random() * categories.length)],
-      status: Math.random() > 0.15 ? "success" : "failed",
-      referenceId: "PAYTM" + Math.random().toString(36).substring(7).toUpperCase(),
-      description: "Demo transaction for testing"
+      merchantName: isMerchant ? userName : merchant,
+      customerName: isMerchant ? customer : userName,
+      category: suggestCategory(isMerchant ? userName : merchant),
+      status: Math.random() > 0.1 ? "success" : "failed",
+      referenceId: "TXN" + Math.random().toString(36).substring(2, 10).toUpperCase(),
+      description: `Payment at ${isMerchant ? userName : merchant}`
     };
     
     const docRef = doc(collection(db, 'transactions'));

@@ -62,14 +62,25 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if true; // Public read for demo
-      allow create, update: if true; // Permissive for demo
+      allow read: if isAuthenticated() || isDemoUser(userId);
+      allow create, update: if (isAuthenticated() && (request.auth.uid == userId || isAdmin())) || isDemoUser(userId);
     }
 
     match /transactions/{transactionId} {
-      allow read: if true; // Public read for demo
-      allow create: if true; // Permissive for demo
-      allow update: if true; // Permissive for demo
+      allow read: if isAuthenticated() || isDemoUser(resource.data.merchantId) || isDemoUser(resource.data.customerId);
+      allow create, update: if isAuthenticated() || isDemoUser(request.resource.data.merchantId) || isDemoUser(request.resource.data.customerId);
+    }
+
+    match /conversations/{conversationId} {
+      allow read: if (isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin())) || isDemoUser(resource.data.userId);
+      allow create: if (isAuthenticated() && request.resource.data.userId == request.auth.uid) || isDemoUser(request.resource.data.userId);
+      allow update: if (isAuthenticated() && resource.data.userId == request.auth.uid) || isDemoUser(request.resource.data.userId);
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "iamshreedshrivastava@gmail.com" && request.auth.token.email_verified == true));
     }
   }
 }

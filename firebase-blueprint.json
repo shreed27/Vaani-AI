@@ -32,6 +32,28 @@
         "description": { "type": "string" }
       },
       "required": ["amount", "timestamp", "merchantId", "customerId", "status"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Voice conversation log",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["merchant", "customer"] },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "turns": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "speaker": { "type": "string", "enum": ["user", "ai"] },
+              "text": { "type": "string" },
+              "timestamp": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "required": ["userId", "role", "timestamp", "turns"]
     }
   },
   "firestore": {
@@ -42,6 +64,10 @@
     "/transactions/{transactionId}": {
       "schema": "Transaction",
       "description": "Transaction records"
+    },
+    "/conversations/{conversationId}": {
+      "schema": "Conversation",
+      "description": "Conversation logs"
     }
   }
 }
